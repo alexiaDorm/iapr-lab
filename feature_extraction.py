@@ -1,0 +1,265 @@
+import numpy as np
+import cv2
+from scipy import stats
+import scipy.stats as stats
+import pandas as pd
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+import skimage.filters
+
+from segmentation import *
+from helper_functions import *
+
+from save_evaluation_files import save_feature_map
+
+
+#%%
+# COLOR FEATURES
+
+def color_histogram(img, bins=(8,8,8)):
+    '''
+    Extract color histogram features from the image.
+    :param img: image in RGB color space from which the features are extracted
+    :param bins: number of bins for each channel
+    :return hist: color histogram
+    '''
+
+    # Compute the color histogram
+    hist = cv2.calcHist([img], [0, 1, 2], None, bins, [0, 256, 0, 256, 0, 256])
+
+    # Normalize histogram so the sum of all bin heights is 1 and flatten
+    hist = cv2.normalize(hist, hist).flatten()
+
+    return hist
+
+def mean_std_hist(rgb_histogram):
+    '''
+    Compute the mean and standard deviation of the color histogram, to use as features.
+    :param rgb_histogram: color histogram
+    :return mean: mean of the color histogram
+    :return std: standard deviation of the color histogram
+    '''
+    mean = np.mean(rgb_histogram)
+    std = np.std(rgb_histogram)
+    return mean, std
+
+def average_color(img):
+    '''
+    Compute the average red and green value of the image.
+    :param img: image in RGB color space
+    :return avg_red, avg_green, avg_blue: average red, green and blue value
+    '''
+    avg_red = np.mean(img[:,:,0])
+    avg_green = np.mean(img[:,:,1])
+    avg_blue = np.mean(img[:,:,2])
+    return avg_red, avg_green, avg_blue
+
+
+#%%
+# TEXTURE FEATURES
+def gabor_filter(ksize, sigma, theta, lambd, gamma = 1, psi = 0):
+    '''
+    Define a gabor filter that can be used to extract texture features.
+    :param ksize: size of gabor filter, must be an odd number
+    :param sigma: standard deviation of the gaussian envelope, size of image region being analyzed
+    :param theta: orientation of the function, 0 is horizontal, 90 is vertical
+    :param lambd: wavelength of the sinusoidal factor, frequency being looked for in the texture (high frequency = fine details/slim borders, low frequency = coarse details/thick borders)
+    :param gamma: spatial aspect ratio
+    :param psi: phase offset
+    :return: a gabor filter
+    '''
+    gabor_filter = cv2.getGaborKernel((ksize, ksize), sigma, theta, lambd, gamma, psi, ktype=cv2.CV_32F)
+    return gabor_filter
+
+def gabor_filter_bank(ksize, sigmas, lambdas, thetas):
+    '''
+    Create a gabor filter bank.
+    :param ksize: size of gabor filter, must be an odd number
+    :param sigmas: standard deviation of the gaussian envelope, size of image region being analyzed
+    :param lambdas: wavelength of the sinusoidal factor, frequency being looked for in the texture (high frequency = fine details/slim borders, low frequency = coarse details/thick borders)
+    :param thetas: orientation of the function, 0 is horizontal, 90 is vertical
+    :return: a gabor filter bank
+    '''
+    gabor_filter_bank = []
+    for sigma in sigmas:
+        for lambd in lambdas:
+            for theta in thetas:
+                gabor_filter_bank.append(gabor_filter(ksize, sigma, theta, lambd))
+    return gabor_filter_bank
+
+
+def apply_gabor_filter_bank(img, gabor_filter_bank_list):
+    '''
+    Apply a gabor filter bank to the image.
+    :param img: image in RGB color space
+    :param gabor_filter_bank_list: gabor filter bank (list)
+    :return: list of filtered images
+    '''
+    filtered_images = []
+    for gabor_filter in gabor_filter_bank_list:
+        filtered_image = cv2.filter2D(img, cv2.CV_8UC3, gabor_filter)
+        filtered_images.append(filtered_image)
+    return filtered_images
+
+
+def gabor_features(gabor_images):
+    '''
+    Extract features from gabor convoluted images, such as mean, standard deviation, kurtosis, power spectrum
+    :param gabor_images: list of filtered images
+    :return features_mean: list of mean values
+    :return features_std: list of standard deviation values
+    :return features_kurtosis: list of kurtosis values
+    '''
+    features_mean = []
+    features_std = []
+    features_kurtosis = []
+    for image in gabor_images:
+        # Extract mean of image as a feature
+        features_mean.append(np.mean(image))
+        # Extract standard deviation of image as a feature
+        features_std.append(np.std(image))
+        # Extract kurtosis of image as a feature
+        kurtosis_value = stats.kurtosis(image.flatten(), fisher=True)
+        features_kurtosis.append(kurtosis_value)
+
+    return features_mean, features_std, features_kurtosis
+
+# compute power spectrum of the filter responses
+def power_spectrum(gabor_images):
+    '''
+    Compute power spectrum of the filter responses
+    :param gabor_images: list of filtered images
+    :return features: list of power spectrum values
+    '''
+    power_spectrum = []
+    for image in gabor_images:
+        # Apply Fourier transform
+        f = np.fft.fft2(image)
+        # shift the zero-frequency component to the center of the spectrum
+        fshift = np.fft.fftshift(f)
+        # compute the magnitude spectrum
+        magnitude_spectrum = 20*np.log(np.abs(fshift))
+        pwr_spectrum = np.abs(magnitude_spectrum)**2
+        power_spectrum.append(pwr_spectrum)
+
+    return power_spectrum
+
+def compute_power_spectrum_features(power_spectrum):
+    # Flatten every power spectrum
+    power_spectrum_reshape = np.array(power_spectrum).reshape((np.array(power_spectrum).shape[0], -1))
+
+    # Compute features
+    mean_power = list(np.mean(power_spectrum_reshape, axis=1))
+    max_power = list(np.max(power_spectrum_reshape, axis=1))
+    std_power = list(np.std(power_spectrum_reshape, axis=1))
+    skewness_power = [stats.skew(x) for x in power_spectrum_reshape]
+    kurtosis_power = [stats.kurtosis(x, fisher=True) for x in power_spectrum_reshape]
+
+    return mean_power, max_power, std_power, skewness_power, kurtosis_power
+
+#%%
+# EXTRACT COLOR AND TEXTURE FEATURES
+def extract_features(img, gabor_filter_bank_list):
+    '''
+    Extract features from the image.
+    :param img: image in RGB color space
+    :param gabor_filter_bank_list: gabor filter bank (list)
+    :return features: dictionary of features
+    '''
+    # Compute color histogram
+    hist = color_histogram(img)
+
+    # Compute mean and standard deviation of color histogram
+    mean_color, std_color = mean_std_hist(hist)
+
+    # Compute average red and green value
+    avg_red, avg_green, avg_blue = average_color(img)
+
+    # apply gabor filter bank
+    # convert img to greyscale
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gabor_images = apply_gabor_filter_bank(img, gabor_filter_bank_list)
+
+    # compute gabor features
+    mean_gabor, std_gabor, kurtosis_gabor = gabor_features(gabor_images)
+
+    # compute power spectrum of the filter responses
+    power_spectrum_ = power_spectrum(gabor_images)
+
+    # extract features from the power spectrum
+    mean_power, max_power, std_power, skewness_power, kurtosis_power = compute_power_spectrum_features(power_spectrum_)
+
+    # find features from the power spectrum
+    #mean_pwr_spectrum, std_pwr_spectrum, peak_frequency, bandwidth = power_spectrum_features(power_spectrum)
+    # define a dict of features
+    features = {'mean_color': mean_color, 'std_color': std_color, 'avg_red': avg_red, 'avg_green': avg_green, 'avg_blue': avg_blue,
+                'mean_gabor': mean_gabor, 'std_gabor': std_gabor, 'kurtosis_gabor': kurtosis_gabor,
+                'mean_power': mean_power, 'max_power': max_power, 'std_power': std_power,
+                'skewness_power': skewness_power, 'kurtosis_power': kurtosis_power}
+
+    # Fix the format of features dict
+    features_new = {}
+
+    # Iterate over keys and values in the old dictionary
+    for key, values in features.items():
+        # Check if value is a list
+        if isinstance(values, list):
+            # Iterate over the list of values
+            for i, value in enumerate(values):
+                # Create a new key for each value in the list
+                new_key = f"{key}_{i+1}"
+                # Add the new key-value pair to the new dictionary
+                features_new[new_key] = value
+        else:
+            # If value is not a list, copy the key-value pair to the new dictionary
+            features_new[key] = values
+
+    return features_new
+
+
+def extract_features_all_img(directory, gabor_filter_bank_list, save_features=False, saving_path=None):
+    '''
+    Extract features from all images in the given directory.
+    :param directory: The path of the directory containing the images.
+    :param gabor_filter_bank_list: gabor filter bank (list)
+    :param save_features: If True, save the features
+    :param saving_path: The path of the directory where the features will be saved.
+    :return all_features: A list where each element is a numpy array containing normalized features of each puzzle piece from each image in the directory.
+    '''
+    all_features = []
+    if save_features:
+        os.makedirs(saving_path, exist_ok=True)
+
+    for i, file_name in enumerate(os.listdir(directory)):
+
+        if file_name.endswith('.png'):
+            # Load image
+            img = skimage.io.imread(directory + '/' + file_name)
+
+            # Segment image
+            seg, contours = segment_pieces(img)
+
+            # Extract puzzle pieces
+            puzzles = extract_pieces(img, contours)
+
+            # Extract features of puzzle feat
+            features = [extract_features(x, gabor_filter_bank_list) for x in puzzles]
+            features = np.array(pd.DataFrame(features))
+
+            # Replace inf + nan by median if they exist
+            features[np.where(np.isinf(features))] = 9999
+
+            col_mean = np.nanmedian(features, axis=0)
+            inds = np.where(np.isnan(features))
+            features[inds] = np.take(col_mean, inds[1])
+
+            # Normalize features
+            features_normalized = StandardScaler().fit_transform(features)
+
+            all_features.append(features_normalized)
+
+            # Save feature map if save_features is True
+            if save_features:
+                save_feature_map(i, features_normalized, saving_path)
+
+    return all_features
