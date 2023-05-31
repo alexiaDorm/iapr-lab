@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 
+import matplotlib.pyplot as plt
+
 # SEGMENTATION FUNCTIONS:
 def segment_pieces(img, save_mask=False):
     '''
@@ -29,10 +31,10 @@ def segment_pieces(img, save_mask=False):
     fill_in = np.zeros_like(img)
     for c in contours:
         fill_in = cv2.drawContours(fill_in, [c], 0, (255, 0, 0), thickness=cv2.FILLED)
-
     # Find minrect fitting in fill_in contours
     canny = cv2.Canny(fill_in, 10, 100, 1)
-    contours, hierarchy = cv2.findContours(canny, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    contours, hierarchy = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     for c in contours:
         rect = cv2.minAreaRect(c)
@@ -42,13 +44,12 @@ def segment_pieces(img, save_mask=False):
         seg = cv2.drawContours(img_copy, [box], 0, (0, 255, 0), 3)
         if save_mask:
             cv2.drawContours(mask, [box], 0, (255), -1)
-
     if save_mask:
         mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
         mask = np.where(mask > 0, 1, 0)
-        return seg, mask, contours[::2]
+        return seg, mask, contours
     else:
-        return seg, contours[::2]
+        return seg, contours
 
 
 def extract_pieces(img, contours):
@@ -71,7 +72,7 @@ def extract_pieces(img, contours):
         # Extract only current puzzle piece on image
         temp = cv2.drawContours(np.zeros_like(img), [box], 0, (255, 255, 255), thickness=cv2.FILLED)
         idx_puzzle = np.where(temp == 255)
-        piece = np.zeros_like(img);
+        piece = np.zeros_like(img)
         piece[idx_puzzle] = img[idx_puzzle]
 
         # Rotate image so that piece is centered
