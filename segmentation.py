@@ -32,7 +32,7 @@ def segment_pieces(img, save_mask=False):
 
     # Find minrect fitting in fill_in contours
     canny = cv2.Canny(fill_in, 10, 100, 1)
-    contours, hierarchy = cv2.findContours(canny, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    contours, hierarchy = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     for c in contours:
         rect = cv2.minAreaRect(c)
@@ -46,9 +46,9 @@ def segment_pieces(img, save_mask=False):
     if save_mask:
         mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
         mask = np.where(mask > 0, 1, 0)
-        return seg, mask, contours[::2]
+        return seg, mask, contours
     else:
-        return seg, contours[::2]
+        return seg, contours
 
 
 def extract_pieces(img, contours):
