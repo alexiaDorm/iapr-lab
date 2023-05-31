@@ -43,17 +43,22 @@ def mean_std_hist(rgb_histogram):
     std = np.std(rgb_histogram)
     return mean, std
 
-def average_color(img):
+
+def average_std_color(img):
     '''
     Compute the average red and green value of the image.
     :param img: image in RGB color space
-    :return avg_red, avg_green, avg_blue: average red, green and blue value
+    :return avg_red: average red value
     '''
-    avg_red = np.mean(img[:,:,0])
-    avg_green = np.mean(img[:,:,1])
-    avg_blue = np.mean(img[:,:,2])
-    return avg_red, avg_green, avg_blue
+    avg_red = np.mean(img[:, :, 0])
+    avg_green = np.mean(img[:, :, 1])
+    avg_blue = np.mean(img[:, :, 2])
 
+    std_red = np.std(img[:, :, 0])
+    std_green = np.std(img[:, :, 1])
+    std_blue = np.std(img[:, :, 2])
+
+    return avg_red, avg_green, avg_blue, std_red, std_green, std_blue
 
 #%%
 # TEXTURE FEATURES
@@ -158,6 +163,37 @@ def compute_power_spectrum_features(power_spectrum):
     return mean_power, max_power, std_power, skewness_power, kurtosis_power
 
 #%%
+# SHAPE FEATURES
+
+def compute_shape_feat(img):
+    '''
+    Computes shape-based features from a given image. Specifically, it calculates the average circularity, area, and
+    perimeter of all contours in the image.
+
+    :param img: The input image from which features are to be computed.
+
+    :return: A tuple consisting of:
+             - Average circularity of all contours in the image.
+             - Average area of all contours in the image.
+             - Average perimeter of all contours in the image.
+    '''
+    # Find contours
+    canny = cv2.Canny(img, 20, 50, 1)
+    contours, hierarchy = cv2.findContours(canny, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+
+    # Compute circularity of contours
+    circularity, areas, perimeters = [], [], []
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+        perimeter = cv2.arcLength(cnt, False)
+        areas.append(area)
+        perimeters.append(perimeter)
+
+        if perimeter != 0:
+            circularity.append(4 * np.pi * (area / perimeter ** 2))
+
+    return np.mean(circularity), np.mean(areas), np.mean(perimeters)
+#%%
 # EXTRACT COLOR AND TEXTURE FEATURES
 def extract_features(img, gabor_filter_bank_list):
     '''
@@ -173,7 +209,7 @@ def extract_features(img, gabor_filter_bank_list):
     mean_color, std_color = mean_std_hist(hist)
 
     # Compute average red and green value
-    avg_red, avg_green, avg_blue = average_color(img)
+    avg_red, avg_green, avg_blue, std_red, std_green, std_blue = average_std_color(img)
 
     # apply gabor filter bank
     # convert img to greyscale
@@ -189,13 +225,18 @@ def extract_features(img, gabor_filter_bank_list):
     # extract features from the power spectrum
     mean_power, max_power, std_power, skewness_power, kurtosis_power = compute_power_spectrum_features(power_spectrum_)
 
+    # extract circularity feature
+    circularity, area, perimeter = compute_shape_feat(img)
+
     # find features from the power spectrum
-    #mean_pwr_spectrum, std_pwr_spectrum, peak_frequency, bandwidth = power_spectrum_features(power_spectrum)
+    # mean_pwr_spectrum, std_pwr_spectrum, peak_frequency, bandwidth = power_spectrum_features(power_spectrum)
     # define a dict of features
-    features = {'mean_color': mean_color, 'std_color': std_color, 'avg_red': avg_red, 'avg_green': avg_green, 'avg_blue': avg_blue,
+    features = {'mean_color': mean_color, 'std_color': std_color, 'avg_red': avg_red, 'avg_green': avg_green,
+                'avg_blue': avg_blue,
                 'mean_gabor': mean_gabor, 'std_gabor': std_gabor, 'kurtosis_gabor': kurtosis_gabor,
                 'mean_power': mean_power, 'max_power': max_power, 'std_power': std_power,
-                'skewness_power': skewness_power, 'kurtosis_power': kurtosis_power}
+                'skewness_power': skewness_power, 'kurtosis_power': kurtosis_power, 'circularity': circularity,
+                'area': area, 'perimeter': perimeter, 'std_red': std_red, 'std_blue': std_blue, 'std_green': std_green}
 
     # Fix the format of features dict
     features_new = {}
@@ -207,7 +248,7 @@ def extract_features(img, gabor_filter_bank_list):
             # Iterate over the list of values
             for i, value in enumerate(values):
                 # Create a new key for each value in the list
-                new_key = f"{key}_{i+1}"
+                new_key = f"{key}_{i + 1}"
                 # Add the new key-value pair to the new dictionary
                 features_new[new_key] = value
         else:
