@@ -85,4 +85,3 @@ def extract_pieces(img, contours):
         pieces.append(crop)
 
     return pieces
-

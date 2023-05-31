@@ -4,20 +4,9 @@ from PIL import Image
 
 import numpy as np
 import matplotlib.pyplot as plt
-
-# library
-import skimage.filters
-import skimage.io
-import cv2
 import math
 
-# library
-import cv2
-from scipy import stats
-import scipy.stats as stats
-import pandas as pd
-from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler
+
 
 def save_segmented_image(image_index, seg, folder ="segments", path="data_project"):
     '''

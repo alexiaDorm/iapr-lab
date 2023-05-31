@@ -1,11 +1,8 @@
-import numpy as np
 import cv2
-from scipy import stats
-import scipy.stats as stats
-import pandas as pd
-from sklearn.decomposition import PCA
-from sklearn.preprocessing import StandardScaler
 import skimage.filters
+from sklearn.preprocessing import StandardScaler
+from scipy import stats
+import pandas as pd
 
 from segmentation import *
 from helper_functions import *
