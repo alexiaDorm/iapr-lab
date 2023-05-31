@@ -9,7 +9,7 @@ import os
 ###
 from PIL import Image
 
-def export_solutions(image_index , solutions , path = "data_project"  , group_id = "00"):
+def export_solutions(image_index , solutions , path = "data_project"  , group_id = "32"):
     """
     Wrapper funciton to load image and save solution
 
@@ -64,7 +64,7 @@ def export_solutions(image_index , solutions , path = "data_project"  , group_id
     save_mask           (image_index, solutions[0], saving_path)
     save_feature_map    (image_index, solutions[1], saving_path)
     save_cluster        (image_index, solutions[2], saving_path)
-    save_solved_puzzles (image_index, solutions[3], saving_path)
+    #save_solved_puzzles (image_index, solutions[3], saving_path)
 
     return None
 
