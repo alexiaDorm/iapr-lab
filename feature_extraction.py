@@ -93,6 +93,18 @@ def average_std_color(img):
 
     return avg_red, avg_green, avg_blue, std_red, std_green, std_blue
 
+def average_std_grey(img):
+    '''
+    Compute the average and standard deviation value of the grey color in the image.
+    :param img: image in grayscale
+    :return avg_gray: average grey value
+    :return std_gray: standard deviation grey value
+    '''
+    avg_gray = np.mean(img)
+    std_gray = np.std(img)
+
+    return avg_gray, std_gray
+
 #%%
 # TEXTURE FEATURES
 def gabor_filter(ksize, sigma, theta, lambd, gamma = 1, psi = 0):
@@ -257,6 +269,8 @@ def extract_features(img, gabor_filter_bank_list):
     # Find number of peaks and max peak height of grey histogram
     peaks, max_peak = histogram_features(hist_grey)
 
+    avg_grey, std_grey = average_std_grey(img)
+
     # apply gabor filter bank
     gabor_images = apply_gabor_filter_bank(img, gabor_filter_bank_list)
 
@@ -279,7 +293,8 @@ def extract_features(img, gabor_filter_bank_list):
                 'mean_power': mean_power, 'max_power': max_power, 'std_power': std_power,
                 'skewness_power': skewness_power, 'kurtosis_power': kurtosis_power, 'circularity': circularity,
                 'area': area, 'perimeter': perimeter, 'std_red': std_red, 'std_blue': std_blue, 'std_green': std_green,
-                'mean_grey': mean_grey, 'std_grey': std_grey, 'peaks': peaks, 'max_peak': max_peak}
+                'mean_grey': mean_grey, 'std_grey': std_grey, 'peaks': peaks, 'max_peak': max_peak,
+                'avg_grey': avg_grey, 'std_grey': std_grey}
 
     # Fix the format of features dict
     features_new = {}

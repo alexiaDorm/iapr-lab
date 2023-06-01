@@ -59,7 +59,7 @@ def perform_PCA_and_plot_explained_variance(features, n_components=None, exp_var
 
 def MIM(path_img, y_true, gabor_filter_bank_list):
     '''
-    Extracts the features from an image using Gabor filters, normalizes them, and uses Mutual Information (MI)
+    Extracts the features from an image, normalizes them, and uses Mutual Information (MI)
     to find the most important features.
 
     :param path_img: The path of the image to extract features from.
