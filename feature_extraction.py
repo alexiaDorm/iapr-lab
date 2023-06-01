@@ -104,6 +104,7 @@ def apply_gabor_filter_bank(img, gabor_filter_bank_list):
     return filtered_images
 
 
+
 def gabor_features(gabor_images):
     '''
     Extract features from gabor convoluted images, such as mean, standard deviation, kurtosis, power spectrum

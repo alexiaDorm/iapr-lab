@@ -104,9 +104,6 @@ def solve_and_export_puzzles_image(image_index, folder="train2", path="data_proj
 
     return image_loaded, solved_puzzles, outlier_images
 
-
-
-
 def display_images_in_grid(puzzle_pieces, image_index = None, cmap = None, folder='grids', path='data_project', save=False):
     '''
     Display the puzzle pieces in a grid.

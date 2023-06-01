@@ -125,12 +125,13 @@ def segment_cluster_pieces(path_img, nb_cluster, gabor_filter_bank_list, feat_id
 def relabel_and_find_min_label(predicted_clusters_copy):
     '''
     This function relabels the cluster labels so they are continuous integers,
-    and identifies the label with the minimum count.
+    and identifies the label with the minimum count (which we identify as an outlier).
 
     :param predicted_clusters_copy: List of cluster assignments for each data point.
 
     :return min_labels_image: List of labels that have the fewest elements in each cluster.
     :return min_label_counts: List of counts of elements associated with each label in min_labels_image.
+    :return predicted_clusters_copy: List of cluster assignments for each data point, with relabeled clusters.
     '''
     min_labels_image = []
     min_label_counts = []  # stores the counts of pieces for each min_label
