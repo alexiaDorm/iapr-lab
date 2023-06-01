@@ -113,13 +113,16 @@ def segment_cluster_pieces(path_img, nb_cluster, gabor_filter_bank_list, feat_id
     pred = merge_cluster(pred)
     pred = find_outlier(df, pred)
 
-    # Compute class-wise precision
-    M = confusion_matrix(y_true, pred)
-    prec = np.max(M, axis=1) / np.sum(M, axis=1)
+    if y_true != None:
+        # Compute class-wise precision
+        M = confusion_matrix(y_true, pred)
+        prec = np.max(M, axis=1) / np.sum(M, axis=1)
 
-    print(f'Precision for image ' + path_img + str(prec))
+        print(f'Precision for image ' + path_img + str(prec))
 
-    return prec, pred, puzzles
+        return prec, pred, puzzles
+    else:
+        return pred, puzzles
 
 
 def relabel_and_find_min_label(predicted_clusters_copy):
