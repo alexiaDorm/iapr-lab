@@ -314,7 +314,7 @@ def extract_features_all_img(directory, gabor_filter_bank_list, save_features=Fa
     if save_features:
         os.makedirs(saving_path, exist_ok=True)
 
-    for i, file_name in enumerate(os.listdir(directory)):
+    for i, file_name in enumerate(sorted(os.listdir(directory))):
 
         if file_name.endswith('.png'):
             # Load image
