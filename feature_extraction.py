@@ -2,6 +2,7 @@ import cv2
 import skimage.filters
 from sklearn.preprocessing import StandardScaler
 from scipy import stats
+import scipy.signal
 import pandas as pd
 
 from segmentation import *
@@ -29,23 +30,58 @@ def color_histogram(img, bins=(8,8,8)):
 
     return hist
 
-def mean_std_hist(rgb_histogram):
+def grey_histogram(img, bins=256):
     '''
-    Compute the mean and standard deviation of the color histogram, to use as features.
-    :param rgb_histogram: color histogram
-    :return mean: mean of the color histogram
-    :return std: standard deviation of the color histogram
+    Extract grey level histogram features from the image.
+    :param img: image in grayscale from which the features are extracted
+    :param bins: number of bins for the grey level values
+    :return hist: grey level histogram
     '''
-    mean = np.mean(rgb_histogram)
-    std = np.std(rgb_histogram)
+
+    # Compute the grey level histogram
+    hist = cv2.calcHist([img], [0], None, [bins], [0, 256])
+
+    # Normalize histogram so the sum of all bin heights is 1 and flatten
+    hist = cv2.normalize(hist, hist).flatten()
+
+    return hist
+
+def histogram_features(histogram):
+    '''
+    Find the number of peaks in a histogram and the max value of the peak
+    :param histogram: color or grey histogram
+    :return nb_peaks: number of peaks in the histogram
+    :return max_peak: max value of the peak
+    '''
+    # Find the peaks in the histogram
+    peaks = scipy.signal.find_peaks(histogram)[0]
+
+    # Compute number of peaks
+    nb_peaks = len(peaks)
+
+    # If there are peaks, compute the max peak value; if no peaks, max_peak = 0
+    max_peak = np.max(histogram[peaks]) if nb_peaks > 0 else 0
+
+    return nb_peaks, max_peak
+
+def mean_std_hist(histogram):
+    '''
+    Compute the mean and standard deviation of the color/grey histogram, to use as features.
+    :param histogram: rgb or grey color histogram
+    :return mean: mean of the histogram
+    :return std: standard deviation of the histogram
+    '''
+    mean = np.mean(histogram)
+    std = np.std(histogram)
     return mean, std
 
 
 def average_std_color(img):
     '''
-    Compute the average red and green value of the image.
+    Compute the average and standard deviation value of the red, green and blue colors of the image.
     :param img: image in RGB color space
-    :return avg_red: average red value
+    :return avg_red, avg_green, avg_blue: average red, green, blue value
+    :return std_red, std_green, std_blue: standard deviation red, green, blue value
     '''
     avg_red = np.mean(img[:, :, 0])
     avg_green = np.mean(img[:, :, 1])
@@ -201,17 +237,27 @@ def extract_features(img, gabor_filter_bank_list):
     :return features: dictionary of features
     '''
     # Compute color histogram
-    hist = color_histogram(img)
+    hist_color = color_histogram(img)
 
     # Compute mean and standard deviation of color histogram
-    mean_color, std_color = mean_std_hist(hist)
+    mean_color, std_color = mean_std_hist(hist_color)
 
     # Compute average red and green value
     avg_red, avg_green, avg_blue, std_red, std_green, std_blue = average_std_color(img)
 
-    # apply gabor filter bank
     # convert img to greyscale
     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    # Compute grey histogram
+    hist_grey = grey_histogram(img)
+
+    # Compute mean and standard deviation of grey histogram
+    mean_grey, std_grey = mean_std_hist(hist_grey)
+
+    # Find number of peaks and max peak height of grey histogram
+    peaks, max_peak = histogram_features(hist_grey)
+
+    # apply gabor filter bank
     gabor_images = apply_gabor_filter_bank(img, gabor_filter_bank_list)
 
     # compute gabor features
@@ -226,15 +272,14 @@ def extract_features(img, gabor_filter_bank_list):
     # extract circularity feature
     circularity, area, perimeter = compute_shape_feat(img)
 
-    # find features from the power spectrum
-    # mean_pwr_spectrum, std_pwr_spectrum, peak_frequency, bandwidth = power_spectrum_features(power_spectrum)
     # define a dict of features
     features = {'mean_color': mean_color, 'std_color': std_color, 'avg_red': avg_red, 'avg_green': avg_green,
                 'avg_blue': avg_blue,
                 'mean_gabor': mean_gabor, 'std_gabor': std_gabor, 'kurtosis_gabor': kurtosis_gabor,
                 'mean_power': mean_power, 'max_power': max_power, 'std_power': std_power,
                 'skewness_power': skewness_power, 'kurtosis_power': kurtosis_power, 'circularity': circularity,
-                'area': area, 'perimeter': perimeter, 'std_red': std_red, 'std_blue': std_blue, 'std_green': std_green}
+                'area': area, 'perimeter': perimeter, 'std_red': std_red, 'std_blue': std_blue, 'std_green': std_green,
+                'mean_grey': mean_grey, 'std_grey': std_grey, 'peaks': peaks, 'max_peak': max_peak}
 
     # Fix the format of features dict
     features_new = {}
